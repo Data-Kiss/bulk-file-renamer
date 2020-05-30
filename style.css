@@ -1,0 +1,99 @@
+@import url('https://fonts.googleapis.com/css2?family=Jost:wght@400;700&display=swap');
+
+body {
+    background:#131122;
+    font-family: 'Jost', sans-serif;
+    color:#FFF;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color:#ff5722;
+}
+
+.options h1:first-child {
+    margin-top:0;
+}
+
+section h3:first-child {
+    margin-top:0;
+}
+
+/* Layout */
+main {
+    padding:10px;
+}
+
+section.options-group {
+    padding:20px;
+}
+
+section.active-options {
+    background:#202557;
+}
+
+hr {
+    border:0;
+    border-bottom:solid 1px #131122;
+}
+
+/* Buttons */
+button {
+    display:block;
+    padding:5px 10px;
+    margin:0 0 0 10px;
+    font-family: 'Jost', sans-serif;
+    font-size:18px;
+    font-weight:700;
+    border:none;
+    cursor:pointer;
+    background:#43a047;
+    color:#000;
+    border-radius:20px;
+}
+
+button#select-dir {
+    display:inline-block;
+}
+
+button#go {
+    margin:30px auto 0 auto;
+}
+
+button:hover {
+    background:#76d275;
+}
+
+#directory-selected-notification {
+    display:none;
+}
+
+.selected-value {
+    padding:5px;
+    color:#ff5722;
+    background:#131122;
+    
+}
+
+.content-wrapper {
+    display:flex;
+}
+
+.content-wrapper .options {
+    flex:1;
+    background:#1E213A;
+    padding:30px;
+    margin-right:20px;
+    border-radius:10px;
+}
+
+.content-wrapper .preview {
+    
+    flex:1;
+    border-radius:10px;
+    padding:30px;
+    background:#1E213A;
+}
+
+.content-wrapper .preview h2 {
+    margin-top:0;
+}

@@ -1,0 +1,21 @@
+{
+  "name": "bulk-file-renamer",
+  "version": "1.0.0",
+  "description": "A program to rename batches of files using a common template.",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-packager .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "DataKiss",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^8.0.3",
+    "electron-packager": "^14.2.1"
+  },
+  "dependencies": {
+    "glob": "^7.1.6"
+  }
+}

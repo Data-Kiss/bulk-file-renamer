@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Bulk File Renamer</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.googleapis.com https://fonts.gstatic.com;">
+    <link rel="stylesheet" type="text/css" href="style.css"/>
+  </head>
+  <body>
+    <main class="content-wrapper">
+        <div class="options">
+            <h1>Bulk File Renamer</h1>
+            <section>
+                <label>Select the directory containing the files you wish to rename:</label>
+                <button id="select-dir">Select a directory</button>
+                <p id="directory-selected-notification">All files in <span id="lbl-selected-directory" class="selected-value"></span> <strong>and files inside any subdirectories</strong> will be renamed as per the options you select below:</p>
+            </section>
+
+            <h2>Options</h2>            
+
+            <section id="option-set1" class="options-group">
+                <h3>Case</h3>
+                <div>            
+                    <input type="radio" name="case" id="case-nochange" value="0" checked/>
+                    <label for="case-nochange">No change</label> 
+                    <input type="radio" name="case" id="case-lower" value="lower"/>
+                    <label for="case-lower">All lowercase</label> 
+                    <input type="radio" name="case" id="case-upper" value="upper"/>
+                    <label for="case-upper">All uppercase</label> 
+                </div>
+
+                <h3>Join words</h3>
+                
+                <input type="radio" name="join-words" id="join-words-nochange" value="0" checked/>
+                <label for="join-words-nochange">No change</label> 
+                <input type="radio" name="join-words" id="join-words-underscore" value="underscore"/>
+                <label for="join-words-underscore">Underscores</label> 
+                <input type="radio" name="join-words" id="join-words-hyphens" value="hyphen"/>
+                <label for="join-words-hyphens">Hyphens</label> 
+            </section>
+            <hr>
+
+            <section id="option-set2" class="options-group">
+                <h3>Full rename</h3>
+                <p>All files will be named as below, with an increasing number appended to the end.</p>
+                <input type="text" name="rename" id="rename"/>
+            </section>
+            <hr>
+            <button id="go">Rename all files</button>           
+        </div>
+
+        <div class="preview">
+            <h2>Preview</h2>
+            <p id="no-files-selected-notification">You need to select a directory that contains files to be able to preview the changes.</p>
+            <ul id="files-list">
+                
+            </ul>
+        </div>
+    </main>
+
+    <script>
+
+        const ipcRenderer = require('electron').ipcRenderer;
+        const dirBtn = document.getElementById('select-dir');
+        const goBtn = document.getElementById('go');
+
+        var filesFound = false;
+        var caseRadios = document.querySelectorAll('input[name="case"]');
+        var joinWordsRadios = document.querySelectorAll('input[name="join-words"]');
+        var renameInput = document.getElementById('rename');
+
+        var directorySelected = '';
+        var filesList = []; // Holds the original file names.
+        var newFilesList = [];  // Holds the new file names.
+        var newFilesChanges = {};   // Holds what will change for each file (e.g. spaces to hyphens).
+        // Set the defaults
+        var renamingDefaults = {};
+        newFilesChanges.case = 0;
+        newFilesChanges.joinWords = 0;
+        newFilesChanges.rename = '';
+   
+        /* Select a directory. */
+        dirBtn.addEventListener('click', function () {
+            ipcRenderer.send('selectDir', {});
+            // Reset any selections.
+            resetOptions();
+            renameInput.value = '';            
+        });       
+
+        /* Add an event listener to each radio for 'Case'. */
+        caseRadios.forEach(function(element) {   
+            element.addEventListener('change', function(event, value) {
+                // Swap the styling of the option sections, as the full rename is not available if selecting this option.
+                document.getElementById('option-set1').classList.add("active-options");
+                document.getElementById('option-set2').classList.remove("active-options");
+
+                // Reset the full rename value, as it's only applicable when other options aren't set.
+                renameInput.value = '';
+                updateFilesListModification('rename', '');
+                // Store the case modifier.
+                updateFilesListModification('case', event.target.value);
+                previewRenames();
+            });
+        });
+
+        /* Add an event listener to each radio for how words are joined. */
+        joinWordsRadios.forEach(function(element) {   
+            element.addEventListener('change', function(event, value) {
+                // Swap the styling of the option sections, as the full rename is not available if selecting this option.
+                document.getElementById('option-set1').classList.add("active-options");
+                document.getElementById('option-set2').classList.remove("active-options");
+                // Reset the full rename value, as it's only applicable when other options aren't set.
+                renameInput.value = '';
+                updateFilesListModification('rename', '');
+                // Store the word join modifier.
+                updateFilesListModification('joinWords', event.target.value);
+                previewRenames();
+            });
+        });
+
+        /* Look for changes if doing a full rename. */
+        renameInput.addEventListener("keyup", function(event) {
+            // Swap the styling of the option sections, as others are no longer available when doing a full rename.
+            document.getElementById('option-set2').classList.add("active-options");
+            document.getElementById('option-set1').classList.remove("active-options");
+            newFilesChanges.rename = event.target.value;
+            // Reset the other options, as they aren't applicable when doing a full rename.
+            resetOptions();
+            previewRenames();
+        });
+
+        /* Perform the renaming. */
+        goBtn.addEventListener('click', function() {
+            if (!directorySelected) {
+                alert('You must select a directory.');
+                return;
+            }
+
+            if (confirm('Are you sure you wish to rename all files in this directory?')) {
+                textCase = document.querySelector('input[name="case"]:checked').value;
+                joinWords = document.querySelector('input[name="join-words"]:checked').value;
+                rename = document.querySelector('input[name="rename"]').value;
+                ipcRenderer.send('go', {
+                    'case': textCase,
+                    'joinWords': joinWords,
+                    'rename': rename,
+                });
+
+                directorySelected = '';
+            }
+        });
+
+        /* Preview the results */
+        function previewRenames() {
+            if (filesFound !== true) {
+                return;
+            }
+
+            let fileCount = 0;
+ 
+            filesList.forEach(function(file, index) {
+                if (newFilesChanges['joinWords'] != 0) {
+                    if (newFilesChanges['joinWords'] == 'underscore') {                                
+                        file = file.replace(/\s|\-/g, "_");
+                    } else if (newFilesChanges['joinWords'] == 'hyphen') {
+                        file = file.replace(/\s|\_/g, "-");
+                    }
+                }
+
+                if (newFilesChanges['case'] != 0) {
+                    if (newFilesChanges['case'] == 'upper') {
+                        file = file.toUpperCase();
+                    } else if (newFilesChanges['case'] == 'lower') {                        
+                        file = file.toLowerCase();
+                    }
+                }
+
+                if (newFilesChanges['rename'] != '') {
+                    fileCount++;
+                    // Keep the extension
+                    let extension = file.split('.')[1];
+                    file = newFilesChanges['rename'] + fileCount + '.' + extension;
+                }
+
+                newFilesList[index] = file;
+            });
+
+            // Go through every file in our new files list.
+            newFilesList.forEach(function(item) {
+                let filesListNodes = document.getElementById('files-list').childNodes;
+                let x = 0;
+
+                if (filesList.length > 0) {
+                    filesListNodes.forEach(function(item) {                        
+                        item.innerText = filesList[x] + '-> ' + newFilesList[x];
+                        x++;
+                    });
+                }
+            });
+        }
+
+        function updateFilesListModification(element, change) {
+            newFilesChanges[element] = change;
+        }
+
+        /* Reset any selected options. */
+        function resetOptions() {
+            updateFilesListModification('joinWords', null);
+            updateFilesListModification('case', null);
+
+            caseRadios.forEach(function(element, index) { 
+                if (element.value == 0) {
+                    element.checked = true;
+                } else {
+                    element.checked = false;
+                }                
+            });
+
+            joinWordsRadios.forEach(function(element, index) { 
+                if (element.value == 0) {
+                    element.checked = true;
+                } else {
+                    element.checked = false;
+                }                
+            });
+        }
+
+        /* Reset all values/options */
+        function resetAll() {
+            resetOptions();
+            updateFilesListModification('rename', '');
+            updateFilesListModification('joinWords', null);
+            updateFilesListModification('case', null);
+            filesList = [];
+            newFilesList = [];
+        }
+
+        /* Receives files in selected directory or the result of a succesful renaming */
+        ipcRenderer.on('asynchronous-message', (event, message) => {
+            
+            document.getElementById('lbl-selected-directory').innerText = message.directorySelected;
+            document.getElementById('files-list').textContent = "";
+
+            // If the renaming is complete
+            if (message.renameSuccessful == true) {
+
+                filesList = [];
+                // Reset the preview window
+                //document.getElementById('files-list').innerHTML = "";
+                document.getElementById('directory-selected-notification').style.display = "none";
+                document.getElementById('no-files-selected-notification').style.display = "block";
+                document.getElementById('option-set1').classList.add("active-options");
+                document.getElementById('option-set2').classList.remove("active-options");
+                renameInput.value = '';
+                updateFilesListModification('rename', '');
+                resetAll();
+                
+            } else {    // A directory should have been selected
+                resetAll();
+                if (message.filesInDir.length > 0) {
+                    directorySelected = message.directorySelected;
+                    document.getElementById('directory-selected-notification').style.display = "block";
+                    document.getElementById('no-files-selected-notification').style.display = "none";
+                    filesFound = true;
+                    message.filesInDir.forEach(function(item) {
+
+                        let filename = item.substring(item.lastIndexOf("/") + 1, item.length);
+                        filesList.push(filename);                       
+
+                        document.getElementById('files-list').insertAdjacentHTML('beforeend', '<li>'+filename+'</li>');
+                    });
+                
+                    newFilesList = filesList.slice();
+                } else {
+                    document.getElementById('directory-selected-notification').style.display = "none";
+                    document.getElementById('no-files-selected-notification').style.display = "block";
+                }
+            }
+        });
+    </script>
+  </body>
+</html>
