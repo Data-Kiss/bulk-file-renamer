@@ -3,7 +3,9 @@ A program to rename batches of files using a common template. This should be use
 
 ## For users
 
-You can download the latest windows release here: 
+You can download the latest windows release here: https://github.com/Data-Kiss/bulk-file-renamer/releases.
+
+Download the latest zip file, unzip and run bulk-file-renamer.exe.
 
 ## For contributors
 
